@@ -1,0 +1,20 @@
+# ---- Claude Code (lokal, jangan di-commit) ----
+.claude/settings.local.json
+
+# ---- OS junk ----
+.DS_Store
+Thumbs.db
+
+# ---- Editor ----
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# ---- Lokal / sementara ----
+*.log
+.env
+.env.local
+*.local
+tmp/

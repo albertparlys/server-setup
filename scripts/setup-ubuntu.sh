@@ -38,6 +38,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 APT_PKGS=(
   build-essential procps curl file git ca-certificates unzip # deps dasar
   gnupg pass                                                  # gpg & password manager
+  zsh                                                         # shell (module 'zsh' bikin keren)
   tmux
   btop net-tools
   htop ncdu iotop sysstat iftop nethogs # monitoring
@@ -58,7 +59,7 @@ BREW_PKGS=(
 
 # --- module (installer khusus) yang dijalanin secara default ---
 MODULES=(
-  nvm pnpm dotfiles
+  zsh nvm pnpm dotfiles
 )
 
 # toggle global

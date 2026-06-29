@@ -21,7 +21,7 @@ _RS_MODULES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pakai eval-based variable (_MOD_DESC_<nama>) supaya kompatibel Bash 3.2 (macOS sistem).
 _MOD_DESC_nvm="Node.js (nvm) + LTS"
 _MOD_DESC_pnpm="pnpm package manager"
-_MOD_DESC_dotfiles=".tmux.conf + aliases"
+_MOD_DESC_dotfiles=".tmux.conf + aliases + cc-ide"
 _MOD_DESC_uv="uv - Python pkg/proj (Astral)"
 _MOD_DESC_rust="Rust (rustup + cargo)"
 _MOD_DESC_go="Go toolchain (go.dev)"
@@ -236,6 +236,20 @@ EOF
   local src='source-file ~/.tmux.remote.conf'
   grep -qF "$src" "$HOME/.tmux.conf" 2>/dev/null || echo "$src" >>"$HOME/.tmux.conf"
   ok "tmux.conf"
+
+  # --- cc-ide: launcher tmux ala-IDE untuk Claude Code -> ~/.local/bin ---
+  # Script-nya ada di dotfiles/ pada repo (root = parent dari lib/). Selalu
+  # di-copy ulang supaya versi terbaru; idempotent.
+  local dotdir="$_RS_MODULES_DIR/../dotfiles" bindir="$HOME/.local/bin" f
+  mkdir -p "$bindir"
+  for f in cc-ide.sh cc-ide-2win.sh; do
+    if [ -f "$dotdir/$f" ]; then
+      install -m 0755 "$dotdir/$f" "$bindir/$f"
+      ok "cc-ide: $f"
+    else
+      skip "cc-ide: $f tidak ada di dotfiles/"
+    fi
+  done
 }
 
 # setup_shell_env — tulis PATH/env semua tool ke ~/.bashrc (& ~/.zshrc kalau ada).

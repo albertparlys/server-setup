@@ -34,6 +34,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # --- formula brew: semua tool CLI utama ---
 BREW_PKGS=(
+  zsh                         # shell (module 'zsh' bikin keren)
   tmux
   btop htop ncdu              # monitoring
   ripgrep jq httpie           # cli util (binary: rg, jq, http)
@@ -47,7 +48,7 @@ BREW_PKGS=(
 
 # --- module yang dijalankan secara default ---
 MODULES=(
-  nvm pnpm dotfiles
+  zsh nvm pnpm dotfiles
 )
 
 INSTALL_BREW=true

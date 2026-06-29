@@ -21,6 +21,7 @@ _RS_MODULES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Pakai eval-based variable (_MOD_DESC_<nama>) supaya kompatibel Bash 3.2 (macOS sistem).
 _MOD_DESC_nvm="Node.js (nvm) + LTS"
 _MOD_DESC_pnpm="pnpm package manager"
+_MOD_DESC_zsh="zsh + Starship + plugin (autosuggest, highlight, completions)"
 _MOD_DESC_dotfiles=".tmux.conf + aliases + cc-ide"
 _MOD_DESC_uv="uv - Python pkg/proj (Astral)"
 _MOD_DESC_rust="Rust (rustup + cargo)"
@@ -30,6 +31,7 @@ _MOD_DESC_bun="Bun runtime"
 _MOD_DESC_deno="Deno runtime"
 _MOD_DESC_fvm="Flutter Version Management"
 _MOD_DESC_composer="PHP Composer (butuh php)"
+_MOD_DESC_chezmoi="chezmoi - manajer dotfiles (set CHEZMOI_REPO utk auto-init)"
 
 # _moddesc <nama> — cetak deskripsi module, atau string kosong jika tidak ada.
 _moddesc() { eval "printf '%s' \"\${_MOD_DESC_${1}:-}\""; }
@@ -180,6 +182,132 @@ mod_composer() {
   sudo php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer
   rm -f /tmp/composer-setup.php
   ok "composer -> /usr/local/bin/composer"
+}
+
+mod_chezmoi() {
+  if have chezmoi; then
+    skip "chezmoi sudah ada"
+  else
+    mkdir -p "$HOME/.local/bin"
+    # installer resmi: single binary, non-interaktif, tanpa sudo -> ~/.local/bin
+    sh -c "$(curl -fsSL https://get.chezmoi.io)" -- -b "$HOME/.local/bin"
+    ok "chezmoi -> ~/.local/bin"
+  fi
+  export PATH="$HOME/.local/bin:$PATH"
+
+  # Auto-init dari repo dotfiles bila CHEZMOI_REPO di-set. Idempotent:
+  # kalau source dir sudah berisi git repo, jangan init ulang.
+  local src
+  src="$(chezmoi source-path 2>/dev/null || echo "$HOME/.local/share/chezmoi")"
+  if [ -n "${CHEZMOI_REPO:-}" ]; then
+    if [ -d "$src/.git" ]; then
+      skip "chezmoi sudah di-init ($src)"
+    else
+      chezmoi init --apply "$CHEZMOI_REPO"
+      ok "chezmoi init --apply $CHEZMOI_REPO"
+    fi
+  else
+    skip "set CHEZMOI_REPO=<git-url> utk auto-init, atau jalankan 'chezmoi init' manual"
+  fi
+}
+
+mod_zsh() {
+  log "zsh: Starship + plugin + config"
+
+  if ! have zsh; then
+    skip "zsh belum terpasang — tambahkan paket 'zsh' (apt/brew) dulu"
+    return
+  fi
+
+  # --- Starship: prompt cepat lintas-shell (installer resmi -> ~/.local/bin) ---
+  if have starship; then
+    skip "starship sudah ada"
+  else
+    mkdir -p "$HOME/.local/bin"
+    curl -fsSL https://starship.rs/install.sh |
+      sh -s -- --yes --bin-dir "$HOME/.local/bin"
+    ok "starship -> ~/.local/bin"
+  fi
+
+  # --- plugin zsh (clone user-local ke ~/.zsh) ---
+  local zdir="$HOME/.zsh" name url
+  mkdir -p "$zdir"
+  for spec in \
+    "zsh-autosuggestions=https://github.com/zsh-users/zsh-autosuggestions" \
+    "zsh-syntax-highlighting=https://github.com/zsh-users/zsh-syntax-highlighting" \
+    "zsh-completions=https://github.com/zsh-users/zsh-completions"; do
+    name="${spec%%=*}"
+    url="${spec#*=}"
+    if [ -d "$zdir/$name/.git" ]; then
+      skip "plugin $name sudah ada"
+    else
+      git clone --depth 1 "$url" "$zdir/$name" && ok "plugin $name"
+    fi
+  done
+
+  # --- config Starship (gaya p10k). Dipasang sebagai file kita sendiri lalu
+  #     dirujuk via $STARSHIP_CONFIG di blok rc -> tidak clobber punya user. ---
+  local dotdir="$_RS_MODULES_DIR/../dotfiles"
+  mkdir -p "$HOME/.config"
+  if [ -f "$dotdir/starship.toml" ]; then
+    install -m 0644 "$dotdir/starship.toml" "$HOME/.config/starship.remote.toml"
+    ok "starship config -> ~/.config/starship.remote.toml"
+  else
+    skip "starship.toml tidak ada di dotfiles/"
+  fi
+
+  # --- blok config zsh (idempotent: diganti, bukan ditumpuk) ---
+  local zb="# >>> remote-setup zsh >>>" ze="# <<< remote-setup zsh <<<"
+  local ZBLOCK
+  read -r -d '' ZBLOCK <<'EOF' || true
+# completion: case-insensitive, menu select (fpath sebelum compinit)
+ZSH_PLUGIN_DIR="$HOME/.zsh"
+[ -d "$ZSH_PLUGIN_DIR/zsh-completions/src" ] && fpath=("$ZSH_PLUGIN_DIR/zsh-completions/src" $fpath)
+autoload -Uz compinit && compinit -d "$HOME/.zcompdump"
+zstyle ':completion:*' menu select
+zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'
+zstyle ':completion:*' list-colors ''
+# history yang waras
+HISTFILE="$HOME/.zsh_history"; HISTSIZE=50000; SAVEHIST=50000
+setopt SHARE_HISTORY HIST_IGNORE_ALL_DUPS HIST_IGNORE_SPACE INC_APPEND_HISTORY EXTENDED_HISTORY
+# QoL
+setopt AUTO_CD INTERACTIVE_COMMENTS GLOB_DOTS NO_BEEP PROMPT_SUBST
+# panah atas/bawah = cari history berdasarkan awalan yang sudah diketik
+autoload -Uz up-line-or-beginning-search down-line-or-beginning-search
+zle -N up-line-or-beginning-search; zle -N down-line-or-beginning-search
+bindkey '^[[A' up-line-or-beginning-search; bindkey '^[OA' up-line-or-beginning-search
+bindkey '^[[B' down-line-or-beginning-search; bindkey '^[OB' down-line-or-beginning-search
+# plugin: autosuggestions
+[ -f "$ZSH_PLUGIN_DIR/zsh-autosuggestions/zsh-autosuggestions.zsh" ] && {
+  source "$ZSH_PLUGIN_DIR/zsh-autosuggestions/zsh-autosuggestions.zsh"
+  ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE='fg=8'
+}
+# plugin: syntax-highlighting (HARUS di-source terakhir)
+[ -f "$ZSH_PLUGIN_DIR/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ] && \
+  source "$ZSH_PLUGIN_DIR/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+# prompt: Starship (pakai config kita, biar gampang dilepas)
+export STARSHIP_CONFIG="$HOME/.config/starship.remote.toml"
+command -v starship >/dev/null 2>&1 && eval "$(starship init zsh)"
+EOF
+  printf '%s\n' "$ZBLOCK" | inject_block "$HOME/.zshrc" "$zb" "$ze"
+  ok "blok config -> ~/.zshrc"
+
+  # --- jadikan zsh shell default (kalau belum). Non-fatal kalau gagal. ---
+  local zbin; zbin="$(command -v zsh)"
+  case "${SHELL:-}" in
+  *zsh) skip "zsh sudah jadi shell default" ;;
+  *)
+    grep -qxF "$zbin" /etc/shells 2>/dev/null ||
+      { echo "$zbin" | sudo tee -a /etc/shells >/dev/null 2>&1 || true; }
+    if sudo chsh -s "$zbin" "$USER" 2>/dev/null || chsh -s "$zbin" 2>/dev/null; then
+      ok "shell default -> zsh (efektif setelah login ulang)"
+    else
+      warn "gagal set zsh default — jalankan manual: chsh -s $zbin"
+    fi
+    ;;
+  esac
+
+  warn "untuk ikon prompt tampil benar, pakai Nerd Font di terminal (mis. JetBrainsMono Nerd Font)"
 }
 
 mod_dotfiles() {

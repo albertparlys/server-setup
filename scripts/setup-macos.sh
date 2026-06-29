@@ -42,6 +42,7 @@ BREW_PKGS=(
   lazygit git-delta           # TUI git + diff cantik (binary: lazygit, delta)
   tealdeer                    # tldr pages cepat (binary: tldr)
   neovim                      # editor (binary: nvim)
+  yazi                        # file manager TUI (pane Files di cc-ide)
 )
 
 # --- module yang dijalankan secara default ---

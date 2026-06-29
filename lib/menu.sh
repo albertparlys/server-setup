@@ -28,7 +28,7 @@ choose_modules() {
     local args=() state
     for m in "${mods[@]}"; do
       in_arr "$m" "${DEFAULT_MODULES[@]}" && state=ON || state=OFF
-      args+=("$m" "${MOD_DESC[$m]:-}" "$state")
+      args+=("$m" "$(_moddesc "$m")" "$state")
     done
     local sel
     sel="$(whiptail --title "Pilih module" \
@@ -53,7 +53,7 @@ choose_modules() {
   echo "Pilih module (ketik nomor, pisah spasi). Default: ${DEFAULT_MODULES[*]}"
   local i=1
   for m in "${mods[@]}"; do
-    printf "  %d) %-9s %s\n" "$i" "$m" "${MOD_DESC[$m]:-}"
+    printf "  %d) %-9s %s\n" "$i" "$m" "$(_moddesc "$m")"
     i=$((i + 1))
   done
   read -rp "> " line

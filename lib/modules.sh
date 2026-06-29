@@ -18,19 +18,21 @@ _RS_MODULES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$_RS_MODULES_DIR/common.sh"
 
 # Deskripsi module (dipakai menu interaktif & dokumentasi).
-declare -A MOD_DESC=(
-  [nvm]="Node.js (nvm) + LTS"
-  [pnpm]="pnpm package manager"
-  [dotfiles]=".tmux.conf + aliases"
-  [uv]="uv - Python pkg/proj (Astral)"
-  [rust]="Rust (rustup + cargo)"
-  [go]="Go toolchain (go.dev)"
-  [docker]="Docker Engine"
-  [bun]="Bun runtime"
-  [deno]="Deno runtime"
-  [fvm]="Flutter Version Management"
-  [composer]="PHP Composer (butuh php)"
-)
+# Pakai eval-based variable (_MOD_DESC_<nama>) supaya kompatibel Bash 3.2 (macOS sistem).
+_MOD_DESC_nvm="Node.js (nvm) + LTS"
+_MOD_DESC_pnpm="pnpm package manager"
+_MOD_DESC_dotfiles=".tmux.conf + aliases"
+_MOD_DESC_uv="uv - Python pkg/proj (Astral)"
+_MOD_DESC_rust="Rust (rustup + cargo)"
+_MOD_DESC_go="Go toolchain (go.dev)"
+_MOD_DESC_docker="Docker Engine"
+_MOD_DESC_bun="Bun runtime"
+_MOD_DESC_deno="Deno runtime"
+_MOD_DESC_fvm="Flutter Version Management"
+_MOD_DESC_composer="PHP Composer (butuh php)"
+
+# _moddesc <nama> — cetak deskripsi module, atau string kosong jika tidak ada.
+_moddesc() { eval "printf '%s' \"\${_MOD_DESC_${1}:-}\""; }
 
 mod_nvm() {
   export NVM_DIR="$HOME/.nvm"
@@ -82,7 +84,8 @@ mod_go() {
     skip "go sudah ada"
     return
   fi
-  local goarch ver
+  local goarch goos ver
+  case "$(uname -s)" in Darwin) goos=darwin ;; *) goos=linux ;; esac
   case "$ARCH" in
   amd64) goarch=amd64 ;;
   arm64) goarch=arm64 ;;
@@ -97,7 +100,7 @@ mod_go() {
     skip "gagal ambil versi Go"
     return
   }
-  curl -fsSL "https://go.dev/dl/${ver}.linux-${goarch}.tar.gz" -o /tmp/go.tgz
+  curl -fsSL "https://go.dev/dl/${ver}.${goos}-${goarch}.tar.gz" -o /tmp/go.tgz
   sudo rm -rf /usr/local/go
   sudo tar -C /usr/local -xzf /tmp/go.tgz
   rm -f /tmp/go.tgz
@@ -105,10 +108,21 @@ mod_go() {
 }
 
 mod_docker() {
-  if have docker; then skip "docker sudah ada"; else
-    curl -fsSL https://get.docker.com | sudo sh
-    ok "docker"
+  if have docker; then
+    skip "docker sudah ada"
+    return
   fi
+  if [ "$(uname -s)" = "Darwin" ]; then
+    if have brew; then
+      brew install --cask docker
+      ok "Docker Desktop — buka aplikasi Docker untuk menyelesaikan setup"
+    else
+      warn "docker: di macOS butuh Docker Desktop — install manual dari docker.com/products/docker-desktop"
+    fi
+    return
+  fi
+  curl -fsSL https://get.docker.com | sudo sh
+  ok "docker"
   if ! id -nG "$USER" | grep -qw docker; then
     sudo usermod -aG docker "$USER"
     ok "user '$USER' ditambah ke grup docker (perlu logout/login agar aktif)"
@@ -231,8 +245,10 @@ setup_shell_env() {
   local eb="# >>> remote-setup env >>>" ee="# <<< remote-setup env <<<"
   local ENVBLOCK
   read -r -d '' ENVBLOCK <<'EOF' || true
-# Homebrew
-[ -d /home/linuxbrew/.linuxbrew ] && eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+# Homebrew (Linux: /home/linuxbrew, macOS: /opt/homebrew atau /usr/local)
+if [ -d /home/linuxbrew/.linuxbrew ]; then eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+elif [ -d /opt/homebrew ]; then eval "$(/opt/homebrew/bin/brew shellenv)"
+elif [ -d /usr/local/Homebrew ]; then eval "$(/usr/local/bin/brew shellenv)"; fi
 # ~/.local/bin (uv, dll)
 case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) export PATH="$HOME/.local/bin:$PATH" ;; esac
 # nvm

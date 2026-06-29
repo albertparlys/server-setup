@@ -32,6 +32,13 @@ else
   esac
 fi
 
+# BSD sed (macOS) butuh -i '' bukan -i. Gunakan _sed_i() supaya portabel.
+if [ "$(uname -s 2>/dev/null)" = "Darwin" ]; then
+  _sed_i() { sed -i '' "$@"; }
+else
+  _sed_i() { sed -i "$@"; }
+fi
+
 # in_arr <needle> <haystack...>  -> 0 kalau ada, 1 kalau tidak
 in_arr() {
   local x="$1"
@@ -46,7 +53,7 @@ in_arr() {
 inject_block() {
   local rc="$1" b="$2" e="$3"
   [ -e "$rc" ] || touch "$rc"
-  grep -qF "$b" "$rc" 2>/dev/null && sed -i "\|$b|,\|$e|d" "$rc"
+  grep -qF "$b" "$rc" 2>/dev/null && _sed_i "\|$b|,\|$e|d" "$rc"
   {
     echo "$b"
     cat

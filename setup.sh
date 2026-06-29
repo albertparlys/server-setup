@@ -67,6 +67,14 @@ case "${1:-}" in
   ;;
 esac
 
+# macOS tidak punya /etc/os-release — deteksi duluan via uname
+if [ "$(uname -s 2>/dev/null)" = "Darwin" ]; then
+  target="$SCRIPTS_DIR/setup-macos.sh"
+  [ -f "$target" ] || die "scripts/setup-macos.sh tidak ditemukan."
+  log "OS terdeteksi: macOS -> scripts/setup-macos.sh"
+  exec bash "$target" "$@"
+fi
+
 [ -r /etc/os-release ] || die "Tidak bisa baca /etc/os-release — OS tak dikenal."
 # shellcheck disable=SC1091
 . /etc/os-release

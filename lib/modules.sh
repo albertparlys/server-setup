@@ -367,10 +367,11 @@ EOF
 
   # --- cc-ide: launcher tmux ala-IDE untuk Claude Code -> ~/.local/bin ---
   # Script-nya ada di dotfiles/ pada repo (root = parent dari lib/). Selalu
-  # di-copy ulang supaya versi terbaru; idempotent.
+  # di-copy ulang supaya versi terbaru; idempotent. cc-ide-lib.sh wajib ikut
+  # karena cc-ide.sh source dia dari direktori yang sama.
   local dotdir="$_RS_MODULES_DIR/../dotfiles" bindir="$HOME/.local/bin" f
   mkdir -p "$bindir"
-  for f in cc-ide.sh cc-ide-2win.sh; do
+  for f in cc-ide-lib.sh cc-ide.sh; do
     if [ -f "$dotdir/$f" ]; then
       install -m 0755 "$dotdir/$f" "$bindir/$f"
       ok "cc-ide: $f"

@@ -339,28 +339,48 @@ EOF
   ok "aliases"
 
   # --- tmux: tulis config kita, lalu source dari ~/.tmux.conf (gak clobber) ---
-  cat >"$HOME/.tmux.remote.conf" <<'EOF'
+  # Clipboard copy-mode: pbcopy (macOS) atau xclip/wl-copy (Linux desktop)
+  # kalau ada; server headless tanpa tool-tool itu ya dilewati aja, gak fatal.
+  local copyto="" copy_set="" copy_binds=""
+  if have pbcopy; then copyto="pbcopy"
+  elif have xclip; then copyto="xclip -selection clipboard"
+  elif have wl-copy; then copyto="wl-copy"
+  fi
+  if [ -n "$copyto" ]; then
+    copy_set="set -s copy-command \"$copyto\""
+    copy_binds="bind -T copy-mode-vi y send-keys -X copy-pipe-and-cancel \"$copyto\"
+bind -T copy-mode-vi Enter send-keys -X copy-pipe-and-cancel \"$copyto\""
+  fi
+  {
+    cat <<'EOF'
 set -g mouse on
 set -g base-index 1
 setw -g pane-base-index 1
 set -g renumber-windows on
 set -g history-limit 50000
-set -sg escape-time 10
+set -sg escape-time 0
 set -g default-terminal "tmux-256color"
 set -ga terminal-overrides ",*256col*:Tc"
+set -g focus-events on
+EOF
+    [ -n "$copy_set" ] && printf '%s\n' "$copy_set"
+    cat <<'EOF'
 setw -g mode-keys vi
 # reload config
 bind r source-file ~/.tmux.conf \; display-message "tmux reloaded"
 # split panel, tetap di cwd
 bind | split-window -h -c "#{pane_current_path}"
 bind - split-window -v -c "#{pane_current_path}"
+bind c new-window -c "#{pane_current_path}"
 # navigasi panel ala vim
 bind h select-pane -L
 bind j select-pane -D
 bind k select-pane -U
 bind l select-pane -R
-set -g status-interval 5
 EOF
+    [ -n "$copy_binds" ] && printf '%s\n' "$copy_binds"
+    echo 'set -g status-interval 5'
+  } >"$HOME/.tmux.remote.conf"
   local src='source-file ~/.tmux.remote.conf'
   grep -qF "$src" "$HOME/.tmux.conf" 2>/dev/null || echo "$src" >>"$HOME/.tmux.conf"
   ok "tmux.conf"

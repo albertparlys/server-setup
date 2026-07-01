@@ -332,6 +332,7 @@ alias t='tmux'
 alias ta='tmux attach -t'
 alias tn='tmux new -s'
 alias tl='tmux ls'
+alias ide='cc-ide.sh'
 command -v btop >/dev/null 2>&1 && alias top='btop'
 EOF
   printf '%s\n' "$ALIASES" | inject_block "$HOME/.bashrc" "$ab" "$ae"
@@ -388,12 +389,17 @@ EOF
   # --- cc-ide: launcher tmux ala-IDE untuk Claude Code -> ~/.local/bin ---
   # Script-nya ada di dotfiles/ pada repo (root = parent dari lib/). Selalu
   # di-copy ulang supaya versi terbaru; idempotent. cc-ide-lib.sh wajib ikut
-  # karena cc-ide.sh source dia dari direktori yang sama.
-  local dotdir="$_RS_MODULES_DIR/../dotfiles" bindir="$HOME/.local/bin" f
+  # karena cc-ide.sh source dia dari direktori yang sama. cc-ide-lib.sh
+  # di-install TANPA execute bit (cuma di-source, bukan dijalankan) supaya
+  # gak nongol sebagai command yang bisa dijalankan & ketuker sama cc-ide.sh
+  # (mis. pas tab-completion "cc-ide<TAB>").
+  local dotdir="$_RS_MODULES_DIR/../dotfiles" bindir="$HOME/.local/bin" f mode
   mkdir -p "$bindir"
   for f in cc-ide-lib.sh cc-ide.sh; do
     if [ -f "$dotdir/$f" ]; then
-      install -m 0755 "$dotdir/$f" "$bindir/$f"
+      mode=0644
+      [ "$f" = "cc-ide.sh" ] && mode=0755
+      install -m "$mode" "$dotdir/$f" "$bindir/$f"
       ok "cc-ide: $f"
     else
       skip "cc-ide: $f tidak ada di dotfiles/"

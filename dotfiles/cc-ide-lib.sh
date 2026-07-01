@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# cc-ide-lib.sh — helper bersama untuk cc-ide.sh & cc-ide-2win.sh.
+# cc-ide-lib.sh — helper untuk cc-ide.sh (launcher tmux ala-IDE Claude Code).
 # Di-source, bukan dieksekusi. Ikut di-install ke ~/.local/bin oleh
-# mod_dotfiles supaya kedua launcher tetap bisa nemu file ini walau
-# dijalankan dari luar checkout repo.
+# mod_dotfiles supaya launcher tetap bisa nemu file ini walau dijalankan
+# dari luar checkout repo.
 
 # cc_ide_require_deps — tmux wajib ada (exit kalau tidak). claude cuma
 # di-warning karena mungkin dipasang dengan nama binary lain.

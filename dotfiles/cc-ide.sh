@@ -14,41 +14,68 @@
 #   cc-ide.sh                  # session di direktori sekarang
 #   cc-ide.sh ~/proj/foo       # session di folder foo
 #   cc-ide.sh ~/proj/foo api   # + nama session custom "api"
+#   cc-ide.sh -k ~/proj/foo    # kill session lama dulu, baru bikin ulang
+#   cc-ide.sh -h               # bantuan
+#
+# Override persentase layout lewat env var:
+#   CC_IDE_RIGHT_PCT=40   # lebar kolom kanan (Files+Git), default 32
+#   CC_IDE_BOTTOM_PCT=30  # tinggi strip Build/Logs, default 25
+#   CC_IDE_SPLIT_PCT=60   # kolom kanan dibagi: Files vs Git, default 50
 #
 set -euo pipefail
 
-WORKDIR="${1:-$PWD}"
-WORKDIR="$(cd "$WORKDIR" && pwd)" # absolutkan path
-SESSION="${2:-$(basename "$WORKDIR" | tr -c 'a-zA-Z0-9_-' '_')}"
+_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=cc-ide-lib.sh
+source "$_DIR/cc-ide-lib.sh"
 
-# Lebar kolom kanan (Files + Git). Default 32% -> sisakan ~68% buat Claude.
-# Override: CC_IDE_RIGHT_PCT=40 cc-ide.sh
+cc_ide_require_deps
+
+KILL=0
+POSITIONAL=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+  -h | --help)
+    cc_ide_usage "$(basename "$0")" "4 pane, 1 window: Claude Code (main) + Files + Git + Build/Logs."
+    ;;
+  -k | --kill)
+    KILL=1
+    shift
+    ;;
+  --)
+    shift
+    POSITIONAL+=("$@")
+    break
+    ;;
+  -*)
+    echo "cc-ide: opsi tidak dikenal: $1" >&2
+    exit 1
+    ;;
+  *)
+    POSITIONAL+=("$1")
+    shift
+    ;;
+  esac
+done
+set -- "${POSITIONAL[@]+"${POSITIONAL[@]}"}"
+
+WORKDIR="$(cc_ide_resolve_workdir "${1:-$PWD}")"
+SESSION="${2:-$(cc_ide_sanitize_name "$(basename "$WORKDIR")")}"
+
+# Lebar/tinggi pane, semua bisa di-override lewat env var (lihat header).
 RIGHT_PCT="${CC_IDE_RIGHT_PCT:-32}"
+BOTTOM_PCT="${CC_IDE_BOTTOM_PCT:-25}"
+SPLIT_PCT="${CC_IDE_SPLIT_PCT:-50}"
 
-# Kalau session sudah ada, tinggal masuk
-if tmux has-session -t "$SESSION" 2>/dev/null; then
-  if [ -n "${TMUX:-}" ]; then
-    tmux switch-client -t "$SESSION"
-  else tmux attach -t "$SESSION"; fi
-  exit 0
+if [ "$KILL" = 1 ] && tmux has-session -t "$SESSION" 2>/dev/null; then
+  tmux kill-session -t "$SESSION"
+  echo "cc-ide: session lama '$SESSION' dimatikan"
 fi
 
-# Pilih tool terbaik yang tersedia (dengan fallback aman)
-if command -v yazi >/dev/null 2>&1; then
-  TREE_CMD="yazi \"$WORKDIR\""
-elif command -v broot >/dev/null 2>&1; then
-  TREE_CMD="broot \"$WORKDIR\""
-elif command -v eza >/dev/null 2>&1; then
-  TREE_CMD='eza --tree --level=2 --icons --git -a'
-else
-  TREE_CMD='ls -la'
-fi
+# Kalau session sudah ada (dan tidak baru saja di-kill), tinggal masuk
+cc_ide_attach_or_switch_if_exists "$SESSION" || true
 
-if command -v lazygit >/dev/null 2>&1; then
-  GIT_CMD="lazygit -p \"$WORKDIR\""
-else
-  GIT_CMD='git status'
-fi
+TREE_CMD="$(cc_ide_pick_tree_cmd "$WORKDIR")"
+GIT_CMD="$(cc_ide_pick_git_cmd "$WORKDIR")"
 
 # Buat session detached, ukur sesuai terminal sekarang
 tmux new-session -d -s "$SESSION" -c "$WORKDIR" \
@@ -57,12 +84,12 @@ tmux new-session -d -s "$SESSION" -c "$WORKDIR" \
 
 main=$(tmux list-panes -t "$SESSION" -F '#{pane_id}' | head -n1)
 
-# Kolom kanan (lebar = $RIGHT_PCT, default 32%) -> file tree
+# Kolom kanan (lebar = $RIGHT_PCT) -> file tree
 right=$(tmux split-window -h -l "${RIGHT_PCT}%" -c "$WORKDIR" -t "$main" -P -F '#{pane_id}')
-# Bagi kolom kanan: pane bawahnya jadi git (50% dari kolom kanan)
-gitp=$(tmux split-window -v -l 50% -c "$WORKDIR" -t "$right" -P -F '#{pane_id}')
-# Strip bawah di bawah pane utama (25% tinggi) -> build/log
-botp=$(tmux split-window -v -l 25% -c "$WORKDIR" -t "$main" -P -F '#{pane_id}')
+# Bagi kolom kanan: pane bawahnya jadi git ($SPLIT_PCT dari kolom kanan)
+gitp=$(tmux split-window -v -l "${SPLIT_PCT}%" -c "$WORKDIR" -t "$right" -P -F '#{pane_id}')
+# Strip bawah di bawah pane utama ($BOTTOM_PCT tinggi) -> build/log
+botp=$(tmux split-window -v -l "${BOTTOM_PCT}%" -c "$WORKDIR" -t "$main" -P -F '#{pane_id}')
 
 # Judul di border tiap pane (biar berasa IDE).
 # Pakai user-option @ide_title supaya label STATIS — tidak ditimpa judul OSC
@@ -85,7 +112,5 @@ tmux send-keys -t "$main" "clear; claude" C-m
 # Fokus balik ke Claude Code
 tmux select-pane -t "$main"
 
-# Masuk ke session
-if [ -n "${TMUX:-}" ]; then
-  tmux switch-client -t "$SESSION"
-else tmux attach -t "$SESSION"; fi
+# Masuk ke session yang baru dibuat
+cc_ide_attach_or_switch_if_exists "$SESSION" || true
